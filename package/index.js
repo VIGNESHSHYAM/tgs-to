@@ -1,9 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const puppeteer = require('puppeteer');
-const GIFEncoder = require('gifencoder');
 const pako = require('pako');
-const { createCanvas, loadImage } = require('canvas');
 const webp = require('webp-converter');
 const ffmpegPath = require('ffmpeg-static');
 const ffmpeg = require('fluent-ffmpeg');
@@ -14,14 +12,13 @@ class TGS {
         this.tgsFilePath = tgsFilePath;
         this.jsonFilePath = path.resolve(__dirname, 'sticker.json');
         this.framesDir = path.resolve(__dirname, 'frames');
-     process.on('exit', () => {
+        process.on('exit', () => {
             this.cleanup();
         });
     }
 
     async cleanup() {
         try {
-            // Remove files
             if (fs.existsSync(this.jsonFilePath)) {
                 fs.unlinkSync(this.jsonFilePath);
                 console.log(`Deleted ${this.jsonFilePath}`);
@@ -34,6 +31,7 @@ class TGS {
             console.error('Error during cleanup:', error);
         }
     }
+
     async convertToGif(gifFilePath) {
         try {
             const conversionSuccess = await this.convertTgsToJson();
@@ -138,35 +136,28 @@ class TGS {
             await page.setContent(htmlContent, { waitUntil: 'load' });
 
             const totalFrames = animationData.op - animationData.ip;
+            const frameDuration = 1000 / animationData.fr;
 
-            function delay(time) {
+            async function delay(time) {
                 return new Promise(resolve => setTimeout(resolve, time));
             }
 
-            const frameDuration = 1000 / animationData.fr;
+            await page.waitForFunction('window.animation !== null', { timeout: 5000 });
 
             for (let i = 0; i < totalFrames; i++) {
-                const startTime = Date.now();
-
                 await page.evaluate((i) => {
                     const animation = window.animation;
-                    animation.goToAndStop(i, true);
+                    if (animation) {
+                        animation.goToAndStop(i, true);
+                    }
                 }, i);
 
                 const framePath = path.join(this.framesDir, `frame_${i}.png`);
                 await page.screenshot({ path: framePath });
-
-                const endTime = Date.now();
-                const elapsedTime = endTime - startTime;
-
-                const remainingDelay = frameDuration - elapsedTime;
-                if (remainingDelay > 0) {
-                    await delay(remainingDelay);
-                }
+                await delay(frameDuration);
             }
 
             console.log('JSON rendered to images successfully.');
-
             await browser.close();
             return true;
         } catch (error) {
@@ -184,31 +175,19 @@ class TGS {
                     return frameNumberA - frameNumberB;
                 });
 
-            const firstFrame = await loadImage(path.join(this.framesDir, frameFiles[0]));
-            const { width, height } = firstFrame;
+            await new Promise((resolve, reject) => {
+                const ffmpegProcess = ffmpeg();
+                ffmpegProcess
+                    .input(path.join(this.framesDir, 'frame_%d.png'))
+                    .inputOptions('-framerate 30')
+                    .outputOptions('-vf scale=512:-1')
+                    .output(gifFilePath)
+                    .on('error', reject)
+                    .on('end', resolve)
+                    .run();
+            });
 
-            const encoder = new GIFEncoder(width, height);
-            encoder.start();
-            encoder.setRepeat(0);
-            encoder.setDelay(100);
-            encoder.setQuality(10);
-
-            const stream = fs.createWriteStream(gifFilePath);
-            encoder.createReadStream().pipe(stream);
-
-            for (const frameFile of frameFiles) {
-                const framePath = path.join(this.framesDir, frameFile);
-                const frameImage = await loadImage(framePath);
-                const canvas = createCanvas(width, height);
-                const ctx = canvas.getContext('2d');
-                ctx.drawImage(frameImage, 0, 0, width, height);
-                encoder.addFrame(ctx);
-                console.log(`Added frame ${framePath}`);
-            }
-
-            encoder.finish();
             console.log('Frames compiled to GIF successfully.');
-
             return true;
         } catch (error) {
             throw error;
@@ -218,7 +197,6 @@ class TGS {
     async convertGifToWebP(inputPath, outputPath) {
         try {
             await webp.gwebp(inputPath, outputPath, "-q 80");
-
             console.log('GIF converted to WebP successfully!');
             return true;
         } catch (error) {
@@ -249,8 +227,6 @@ class TGS {
             throw error;
         }
     }
-    
-    }
-    
-    module.exports = TGS;
-    
+}
+
+module.exports = TGS;
