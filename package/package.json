@@ -1,10 +1,14 @@
 {
   "name": "tgs-to",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "description": "supports for conversion of .tgs to .gif, .webp, .mp4, .json .png",
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/VIGNESHSHYAM/tgs-to.git"
   },
   "keywords": [
     "tgs",
@@ -14,8 +18,12 @@
     "ffmpeg-static",
     "fluent-ffmpeg"
   ],
-  "author": "Vignesh A (APVS)",
+  "author": "vignesh-a",
   "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/VIGNESHSHYAM/tgs-to/issues"
+  },
+  "homepage": "https://github.com/VIGNESHSHYAM/tgs-to#readme",
   "dependencies": {
     "ffmpeg-static": "^5.2.0",
     "fluent-ffmpeg": "^2.1.3",
